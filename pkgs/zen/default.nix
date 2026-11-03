@@ -6,120 +6,166 @@
   wrapFirefox,
   autoPatchelfHook,
   wrapGAppsHook3,
+  makeDesktopItem,
+  copyDesktopItems,
   gtk3,
-  adwaita-icon-theme,
   alsa-lib,
-  dbus-glib,
-  libXtst,
-  ffmpeg_8,
   curl,
   libva,
   pciutils,
   libGL,
   pipewire,
   p11-kit,
-  writeText,
+  formats,
 }:
 
 let
   versions = lib.importJSON ./versions.json;
-  pname = "zen-browser";
-  version = versions.version;
 
   basePolicies = {
-    SecurityDevices = {
-      "System Trust" = "${p11-kit}/lib/pkcs11/p11-kit-trust.so";
+    policies = {
+      SecurityDevices = {
+        "System Trust" = "${p11-kit}/lib/pkcs11/p11-kit-trust.so";
+      };
     };
   };
-  policiesJson = writeText "firefox-policies.json" (builtins.toJSON { policies = basePolicies; });
 
-  unwrapped = stdenv.mkDerivation {
-    pname = "${pname}-unwrapped";
-    inherit version;
+  policiesJson = (formats.json { }).generate "zen-policies.json" basePolicies;
 
-    src = fetchzip {
-      inherit (versions) url hash;
-    };
+  mkZen =
+    {
+      variant ? "beta",
+      variantName ? if variant == "twilight" then "Zen Browser (Twilight)" else "Zen Browser",
+      nameSuffix ? if variant == "twilight" then "-twilight" else "",
+    }:
+    let
+      variantData = versions.${variant};
+      pname = "zen-browser${nameSuffix}";
+      version = variantData.version;
 
-    nativeBuildInputs = [
-      wrapGAppsHook3
-      autoPatchelfHook
-    ];
+      unwrapped = stdenv.mkDerivation {
+        pname = "${pname}-unwrapped";
+        inherit version;
 
-    buildInputs = [
-      gtk3
-      adwaita-icon-theme
-      alsa-lib
-      dbus-glib
-      libXtst
-      ffmpeg_8
-    ];
+        src = fetchzip {
+          inherit (variantData) url hash;
+        };
 
-    runtimeDependencies = [
-      curl
-      libva.out
-      pciutils
-      libGL
-      pipewire
-    ];
+        nativeBuildInputs = [
+          wrapGAppsHook3
+          autoPatchelfHook
+          copyDesktopItems
+        ];
 
-    appendRunpaths = [
-      "${libGL}/lib"
-      "${pipewire}/lib"
-    ];
+        buildInputs = [
+          gtk3
+          alsa-lib
+        ];
 
-    patchelfFlags = [ "--no-clobber-old-sections" ];
+        runtimeDependencies = [
+          curl
+          libva.out
+          pciutils
+          libGL
+          pipewire
+        ];
 
-    installPhase = ''
-      runHook preInstall
+        appendRunpaths = [
+          "${libGL}/lib"
+          "${pipewire}/lib"
+        ];
 
-      mkdir -p $out/lib/zen $out/bin $out/share/applications $out/share/icons/hicolor/128x128/apps
-      cp -r * $out/lib/zen/
-      ln -s $out/lib/zen/zen $out/bin/zen
+        patchelfFlags = [ "--no-clobber-old-sections" ];
 
-      mkdir -p $out/lib/zen/distribution
-      ln -s ${policiesJson} $out/lib/zen/distribution/policies.json
+        desktopItems = [
+          (makeDesktopItem {
+            name = "zen${nameSuffix}";
+            desktopName = variantName;
+            genericName = "Web Browser";
+            comment = "Experience tranquillity while browsing the web";
+            exec = "zen${nameSuffix} %u";
+            icon = "zen${nameSuffix}";
+            terminal = false;
+            categories = [
+              "Network"
+              "WebBrowser"
+            ];
+            mimeTypes = [
+              "text/html"
+              "text/xml"
+              "application/xhtml+xml"
+              "application/vnd.mozilla.xul+xml"
+              "x-scheme-handler/http"
+              "x-scheme-handler/https"
+              "application/pdf"
+            ];
+            startupWMClass = "zen${nameSuffix}";
+            actions = {
+              new-window = {
+                name = "New Window";
+                exec = "zen${nameSuffix} --new-window %u";
+              };
+              new-private-window = {
+                name = "New Private Window";
+                exec = "zen${nameSuffix} --private-window %u";
+              };
+            };
+          })
+        ];
 
-      if [ -f $out/lib/zen/browser/chrome/icons/default/default128.png ]; then
-        ln -s $out/lib/zen/browser/chrome/icons/default/default128.png $out/share/icons/hicolor/128x128/apps/zen.png
-      fi
+        installPhase = ''
+          runHook preInstall
 
-      cat > $out/share/applications/zen.desktop <<EOF
-[Desktop Entry]
-Version=1.0
-Name=Zen Browser
-Comment=Experience tranquillity while browsing the web
-Exec=$out/bin/zen %u
-Terminal=false
-Type=Application
-Icon=zen
-Categories=Network;WebBrowser;
-MimeType=text/html;text/xml;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;application/pdf;
-StartupWMClass=zen
-EOF
+          mkdir -p $out/lib/zen $out/bin
+          cp -r * $out/lib/zen/
+          ln -s $out/lib/zen/zen $out/bin/zen${nameSuffix}
 
-      runHook postInstall
-    '';
+          mkdir -p $out/lib/zen/distribution
+          ln -s ${policiesJson} $out/lib/zen/distribution/policies.json
 
-    passthru = {
+          for size in 16 32 48 64 128; do
+            if [ -f browser/chrome/icons/default/default$size.png ]; then
+              install -Dm644 browser/chrome/icons/default/default$size.png \
+                $out/share/icons/hicolor/''${size}x''${size}/apps/zen${nameSuffix}.png
+            fi
+          done
+
+          runHook postInstall
+        '';
+
+        passthru = {
+          inherit gtk3;
+          binaryName = "zen${nameSuffix}";
+          applicationName = "zen${nameSuffix}";
+          libName = "zen";
+        };
+
+        meta = with lib; {
+          description = "${variantName} - Experience tranquillity while browsing the web";
+          homepage = "https://zen-browser.app";
+          license = licenses.mpl20;
+          platforms = [
+            "x86_64-linux"
+            "aarch64-linux"
+          ];
+          mainProgram = "zen${nameSuffix}";
+        };
+      };
+    in
+    wrapFirefox (unwrapped // {
       inherit gtk3;
-      binaryName = "zen";
-      applicationName = "zen";
+      binaryName = "zen${nameSuffix}";
+      applicationName = "zen${nameSuffix}";
       libName = "zen";
+    }) {
+      inherit pname;
+      libName = "zen";
+      extraPrefs = "";
     };
-
-    meta = with lib; {
-      description = "Zen Browser - Experience tranquillity while browsing the web";
-      homepage = "https://zen-browser.app";
-      license = licenses.mpl20;
-      platforms = [ "x86_64-linux" "aarch64-linux" ];
-      mainProgram = "zen";
-    };
-  };
 
 in
-wrapFirefox (unwrapped // { inherit gtk3; binaryName = "zen"; applicationName = "zen"; libName = "zen"; }) {
-  pname = "zen-browser";
-  libName = "zen";
-  extraPrefs = "";
+{
+  default = mkZen { variant = "beta"; };
+  beta = mkZen { variant = "beta"; };
+  twilight = mkZen { variant = "twilight"; };
 }

@@ -50,12 +50,14 @@
           inherit system;
         };
         bravePackages = pkgs.callPackage ./pkgs/brave/default.nix { };
-        zenPackage = pkgs.callPackage ./pkgs/zen/default.nix { };
+        zenPackages = pkgs.callPackage ./pkgs/zen/default.nix { };
       in
       {
         packages = (builtins.removeAttrs bravePackages [ "override" "overrideDerivation" ]) // {
           default = bravePackages.brave-origin;
-          zen-browser = zenPackage;
+          zen-browser = zenPackages.default;
+          zen-browser-beta = zenPackages.beta;
+          zen-browser-twilight = zenPackages.twilight;
         };
       }
     )
@@ -70,7 +72,10 @@
         brave-origin = final.bravePackages.brave-origin;
         brave-origin-beta = final.bravePackages.brave-origin-beta;
 
-        zen-browser = final.callPackage ./pkgs/zen/default.nix { };
+        zenPackages = final.callPackage ./pkgs/zen/default.nix { };
+        zen-browser = final.zenPackages.default;
+        zen-browser-beta = final.zenPackages.beta;
+        zen-browser-twilight = final.zenPackages.twilight;
       };
     };
 }

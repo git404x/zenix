@@ -2,6 +2,62 @@
   isHomeManager ? false,
   home-manager ? null,
 }:
+let
+  extensionOpts =
+    { lib }:
+    lib.types.submodule {
+      options = {
+        id = lib.mkOption {
+          type = lib.types.str;
+          description = "Extension ID or GUID (e.g. uBlock0@raymondhill.net).";
+        };
+        slug = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = "Mozilla Add-ons (AMO) slug (e.g. ublock-origin). When set, installUrl is generated automatically.";
+        };
+        installUrl = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = null;
+          description = "Direct download URL for the extension XPI.";
+        };
+        installationMode = lib.mkOption {
+          type = lib.types.enum [
+            "allowed"
+            "blocked"
+            "force_installed"
+            "normal_installed"
+          ];
+          default = "normal_installed";
+          description = "Installation mode.";
+        };
+        privateBrowsing = lib.mkOption {
+          type = lib.types.bool;
+          default = true;
+          description = "Whether to allow extension in private browsing windows.";
+        };
+      };
+    };
+
+  extensionListToSettings =
+    lib: exts:
+    lib.listToAttrs (
+      map (ext: {
+        name = ext.id;
+        value = {
+          installation_mode = ext.installationMode;
+          install_url =
+            if ext.installUrl != null then
+              ext.installUrl
+            else if ext.slug != null then
+              "https://addons.mozilla.org/firefox/downloads/latest/${ext.slug}/latest.xpi"
+            else
+              throw "Extension '${ext.id}' must specify either 'slug' or 'installUrl'.";
+          private_browsing = ext.privateBrowsing;
+        };
+      }) exts
+    );
+in
 if isHomeManager then
   let
     mkFirefoxModule =
@@ -16,6 +72,9 @@ if isHomeManager then
     pkgs,
     ...
   }:
+  let
+    cfg = config.programs.zen-browser;
+  in
   {
     imports = [
       (mkFirefoxModule {
@@ -34,9 +93,21 @@ if isHomeManager then
       })
     ];
 
-    config = lib.mkIf config.programs.zen-browser.enable {
+    options.programs.zen-browser = {
+      extensions = lib.mkOption {
+        type = lib.types.listOf (extensionOpts { inherit lib; });
+        default = [ ];
+        description = "Declarative list of extensions to install via Mozilla policies.";
+      };
+    };
+
+    config = lib.mkIf cfg.enable {
       programs.zen-browser.package = lib.mkDefault (
-        pkgs.zen-browser or (pkgs.callPackage ./default.nix { })
+        pkgs.zen-browser or (pkgs.callPackage ./default.nix { }).default
+      );
+
+      programs.zen-browser.policies.ExtensionSettings = lib.mkIf (cfg.extensions != [ ]) (
+        extensionListToSettings lib cfg.extensions
       );
     };
   }
@@ -49,6 +120,9 @@ else
   }:
   let
     cfg = config.programs.zen-browser;
+    allPolicies = (lib.optionalAttrs (cfg.extensions != [ ]) {
+      ExtensionSettings = extensionListToSettings lib cfg.extensions;
+    }) // cfg.policies;
   in
   {
     options.programs.zen-browser = {
@@ -56,9 +130,15 @@ else
 
       package = lib.mkOption {
         type = lib.types.package;
-        default = pkgs.zen-browser or (pkgs.callPackage ./default.nix { });
+        default = pkgs.zen-browser or (pkgs.callPackage ./default.nix { }).default;
         defaultText = lib.literalExpression "pkgs.zen-browser";
         description = "The Zen Browser package to install.";
+      };
+
+      extensions = lib.mkOption {
+        type = lib.types.listOf (extensionOpts { inherit lib; });
+        default = [ ];
+        description = "Declarative list of extensions to install via Mozilla policies.";
       };
 
       policies = lib.mkOption {
@@ -77,12 +157,12 @@ else
     config = lib.mkIf cfg.enable {
       environment.systemPackages = [ cfg.package ];
 
-      environment.etc."zen/policies/policies.json" = lib.mkIf (cfg.policies != { }) {
-        text = builtins.toJSON { inherit (cfg) policies; };
+      environment.etc."zen/policies/policies.json" = lib.mkIf (allPolicies != { }) {
+        text = builtins.toJSON { policies = allPolicies; };
       };
 
-      environment.etc."firefox/policies/policies.json" = lib.mkIf (cfg.policies != { }) {
-        text = builtins.toJSON { inherit (cfg) policies; };
+      environment.etc."firefox/policies/policies.json" = lib.mkIf (allPolicies != { }) {
+        text = builtins.toJSON { policies = allPolicies; };
       };
     };
   }
