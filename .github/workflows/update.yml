@@ -1,4 +1,4 @@
-name: Update Brave Versions
+name: Update Packages
 on:
   schedule:
     - cron: "0 0 * * *"
@@ -12,8 +12,16 @@ jobs:
       - uses: cachix/install-nix-action@v30
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - run: chmod +x pkgs/brave/update.sh && ./pkgs/brave/update.sh
-      - uses: stefanzweifel/git-auto-commit-action@v5
+      - name: Update Brave
+        run: |
+          chmod +x pkgs/brave/update.sh
+          ./pkgs/brave/update.sh
+      - name: Update Zen Browser
+        run: |
+          chmod +x pkgs/zen/update.sh
+          ./pkgs/zen/update.sh
+      - name: Commit updates
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: update brave versions"
-          file_pattern: "pkgs/brave/versions.json"
+          commit_message: "chore: update package versions"
+          file_pattern: "pkgs/*/versions.json"

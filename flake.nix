@@ -4,6 +4,10 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    home-manager = {
+      url = "github:nix-community/home-manager";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -11,15 +15,32 @@
       self,
       nixpkgs,
       flake-utils,
+      home-manager,
     }:
     let
       nixosModules = {
-        default = import ./pkgs/brave/module.nix { isHomeManager = false; };
+        default = {
+          imports = [
+            self.nixosModules.brave
+            self.nixosModules.zen-browser
+          ];
+        };
         brave = import ./pkgs/brave/module.nix { isHomeManager = false; };
+        zen-browser = import ./pkgs/zen/module.nix { isHomeManager = false; };
       };
+
       homeManagerModules = {
-        default = import ./pkgs/brave/module.nix { isHomeManager = true; };
+        default = {
+          imports = [
+            self.homeManagerModules.brave
+            self.homeManagerModules.zen-browser
+          ];
+        };
         brave = import ./pkgs/brave/module.nix { isHomeManager = true; };
+        zen-browser = import ./pkgs/zen/module.nix {
+          isHomeManager = true;
+          inherit home-manager;
+        };
       };
     in
     flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (
@@ -29,15 +50,18 @@
           inherit system;
         };
         bravePackages = pkgs.callPackage ./pkgs/brave/default.nix { };
+        zenPackage = pkgs.callPackage ./pkgs/zen/default.nix { };
       in
       {
         packages = (builtins.removeAttrs bravePackages [ "override" "overrideDerivation" ]) // {
           default = bravePackages.brave-origin;
+          zen-browser = zenPackage;
         };
       }
     )
     // {
       inherit nixosModules homeManagerModules;
+      homeModules = homeManagerModules;
 
       overlays.default = final: prev: {
         bravePackages = final.callPackage ./pkgs/brave/default.nix { };
@@ -45,6 +69,8 @@
         brave-beta = final.bravePackages.brave-beta;
         brave-origin = final.bravePackages.brave-origin;
         brave-origin-beta = final.bravePackages.brave-origin-beta;
+
+        zen-browser = final.callPackage ./pkgs/zen/default.nix { };
       };
     };
 }
