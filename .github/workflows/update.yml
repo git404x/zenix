@@ -12,8 +12,8 @@ jobs:
       - uses: cachix/install-nix-action@v30
         with:
           github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - run: chmod +x update.sh && ./update.sh
+      - run: chmod +x pkgs/brave/update.sh && ./pkgs/brave/update.sh
       - uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore: update brave versions"
-          file_pattern: "versions.json"
+          file_pattern: "pkgs/brave/versions.json"

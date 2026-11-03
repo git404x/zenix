@@ -1,5 +1,5 @@
 {
-  description = "Flake for Brave Browser Variants";
+  description = "zenix: personal and community nix package repository";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -13,8 +13,14 @@
       flake-utils,
     }:
     let
-      nixosModules.default = import ./modules/brave.nix { isHomeManager = false; };
-      homeManagerModules.default = import ./modules/brave.nix { isHomeManager = true; };
+      nixosModules = {
+        default = import ./pkgs/brave/module.nix { isHomeManager = false; };
+        brave = import ./pkgs/brave/module.nix { isHomeManager = false; };
+      };
+      homeManagerModules = {
+        default = import ./pkgs/brave/module.nix { isHomeManager = true; };
+        brave = import ./pkgs/brave/module.nix { isHomeManager = true; };
+      };
     in
     flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (
       system:
@@ -22,10 +28,10 @@
         pkgs = import nixpkgs {
           inherit system;
         };
-        bravePackages = pkgs.callPackage ./pkgs/default.nix { };
+        bravePackages = pkgs.callPackage ./pkgs/brave/default.nix { };
       in
       {
-        packages = bravePackages // {
+        packages = (builtins.removeAttrs bravePackages [ "override" "overrideDerivation" ]) // {
           default = bravePackages.brave-origin;
         };
       }
@@ -34,7 +40,7 @@
       inherit nixosModules homeManagerModules;
 
       overlays.default = final: prev: {
-        bravePackages = final.callPackage ./pkgs/default.nix { };
+        bravePackages = final.callPackage ./pkgs/brave/default.nix { };
         brave = final.bravePackages.brave;
         brave-beta = final.bravePackages.brave-beta;
         brave-origin = final.bravePackages.brave-origin;
