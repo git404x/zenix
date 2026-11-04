@@ -19,23 +19,13 @@
     }:
     let
       nixosModules = {
-        default = {
-          imports = [
-            self.nixosModules.brave
-            self.nixosModules.zen-browser
-          ];
-        };
+        default = import ./modules/nixos { inherit self; };
         brave = import ./pkgs/brave/module.nix { isHomeManager = false; };
         zen-browser = import ./pkgs/zen/module.nix { isHomeManager = false; };
       };
 
       homeManagerModules = {
-        default = {
-          imports = [
-            self.homeManagerModules.brave
-            self.homeManagerModules.zen-browser
-          ];
-        };
+        default = import ./modules/home-manager { inherit self; };
         brave = import ./pkgs/brave/module.nix { isHomeManager = true; };
         zen-browser = import ./pkgs/zen/module.nix {
           isHomeManager = true;

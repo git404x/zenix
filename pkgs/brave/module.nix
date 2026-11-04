@@ -102,17 +102,14 @@ in
       {
         environment.systemPackages = [ wrappedPackage ];
 
-        # System level still uses /etc/brave/policies which works fine
-        environment.etc."brave/policies/managed/policy.json" = lib.mkIf (cfg.extensions != [ ]) {
-          text = builtins.toJSON policy;
-        };
-
-        # Also add it for the specific pname in case it diverges
-        environment.etc."${cfg.package.pname}/policies/managed/policy.json" =
-          lib.mkIf (cfg.extensions != [ ])
-            {
-              text = builtins.toJSON policy;
-            };
+        environment.etc = lib.mkIf (cfg.extensions != [ ]) (
+          lib.listToAttrs (
+            map (name: {
+              name = "${name}/policies/managed/policy.json";
+              value.text = builtins.toJSON policy;
+            }) (lib.unique [ "brave" cfg.package.pname ])
+          )
+        );
       }
   );
 }

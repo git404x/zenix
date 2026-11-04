@@ -157,12 +157,9 @@ else
     config = lib.mkIf cfg.enable {
       environment.systemPackages = [ cfg.package ];
 
-      environment.etc."zen/policies/policies.json" = lib.mkIf (allPolicies != { }) {
-        text = builtins.toJSON { policies = allPolicies; };
-      };
-
-      environment.etc."firefox/policies/policies.json" = lib.mkIf (allPolicies != { }) {
-        text = builtins.toJSON { policies = allPolicies; };
+      environment.etc = lib.mkIf (allPolicies != { }) {
+        "zen/policies/policies.json".text = builtins.toJSON { policies = allPolicies; };
+        "firefox/policies/policies.json".text = builtins.toJSON { policies = allPolicies; };
       };
     };
   }
