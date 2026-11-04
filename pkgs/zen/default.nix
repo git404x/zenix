@@ -75,8 +75,6 @@ let
           "${pipewire}/lib"
         ];
 
-        patchelfFlags = [ "--no-clobber-old-sections" ];
-
         desktopItems = [
           (makeDesktopItem {
             name = "zen${nameSuffix}";
