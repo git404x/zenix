@@ -16,21 +16,10 @@
   libGL,
   pipewire,
   p11-kit,
-  formats,
 }:
 
 let
   versions = lib.importJSON ./versions.json;
-
-  basePolicies = {
-    policies = {
-      SecurityDevices = {
-        "System Trust" = "${p11-kit}/lib/pkcs11/p11-kit-trust.so";
-      };
-    };
-  };
-
-  policiesJson = (formats.json { }).generate "zen-policies.json" basePolicies;
 
   mkZen =
     {
@@ -118,9 +107,6 @@ let
           cp -r * $out/lib/zen/
           ln -s $out/lib/zen/zen $out/bin/zen${nameSuffix}
 
-          mkdir -p $out/lib/zen/distribution
-          ln -s ${policiesJson} $out/lib/zen/distribution/policies.json
-
           for size in 16 32 48 64 128; do
             if [ -f browser/chrome/icons/default/default$size.png ]; then
               install -Dm644 browser/chrome/icons/default/default$size.png \
@@ -150,15 +136,14 @@ let
         };
       };
     in
-    wrapFirefox (unwrapped // {
-      inherit gtk3;
-      binaryName = "zen${nameSuffix}";
-      applicationName = "zen${nameSuffix}";
-      libName = "zen";
-    }) {
+    wrapFirefox unwrapped {
       inherit pname;
       libName = "zen";
-      extraPrefs = "";
+      extraPolicies = {
+        SecurityDevices = {
+          "System Trust" = "${p11-kit}/lib/pkcs11/p11-kit-trust.so";
+        };
+      };
     };
 
 in
