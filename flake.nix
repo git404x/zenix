@@ -41,6 +41,7 @@
         };
         bravePackages = pkgs.callPackage ./pkgs/brave/default.nix { };
         zenPackages = pkgs.callPackage ./pkgs/zen/default.nix { };
+        prismLauncher = pkgs.callPackage ./pkgs/prism-launcher/default.nix { };
       in
       {
         packages = (builtins.removeAttrs bravePackages [ "override" "overrideDerivation" ]) // {
@@ -48,6 +49,7 @@
           zen-browser = zenPackages.default;
           zen-browser-beta = zenPackages.beta;
           zen-browser-twilight = zenPackages.twilight;
+          prism-launcher = prismLauncher;
         };
       }
     )
@@ -66,6 +68,8 @@
         zen-browser = final.zenPackages.default;
         zen-browser-beta = final.zenPackages.beta;
         zen-browser-twilight = final.zenPackages.twilight;
+
+        prism-launcher = final.callPackage ./pkgs/prism-launcher/default.nix { };
       };
     };
 }
